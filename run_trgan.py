@@ -16,11 +16,13 @@ from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from torchsummary import summary
 
-from esrt import ESRT
+from generator import *
 from discriminator import *
 from feature_extractor import *
 from losses import *
-from datasets import *
+from dataloader import *
+from option import get_option
+import augments
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -40,36 +42,25 @@ def set_gpu(model):
 os.makedirs("train_images", exist_ok=True)
 os.makedirs("saved_models", exist_ok=True)
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
-parser.add_argument("--n_epochs", type=int, default=100, help="number of epochs of training")
-parser.add_argument("--batch_size", type=int, default=1, help="size of the batches")
-parser.add_argument("--lr", type=float, default=0.00002, help="adam: learning rate")
-parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
-parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
-parser.add_argument("--decay_epoch", type=int, default=100, help="epoch from which to start lr decay")
-parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
-parser.add_argument("--hr_height", type=int, default=512, help="high res. image height")
-parser.add_argument("--hr_width", type=int, default=512, help="high res. image width")
-parser.add_argument("--channels", type=int, default=3, help="number of image channels")
-parser.add_argument("--sample_interval", type=int, default=100, help="interval between saving image samples")
-parser.add_argument("--checkpoint_interval", type=int, default=-1, help="interval between model checkpoints")
-opt = parser.parse_args()
-
 cuda = torch.cuda.is_available()
+
+opt = get_option()
 
 hr_shape = (opt.hr_height, opt.hr_width)
 
 # Initialize generator and discriminator
-generator = ESRT()#architecture.IMDN(upscale=args.scale)
+generator = Generator(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=10, num_grow_ch=32)
 discriminator = Discriminator(input_shape=(opt.channels, *hr_shape))
 
 # Losses
 perceptual_loss = PerceptualLoss()
 gan_loss = GANLoss()
 criterion_MSE = torch.nn.MSELoss()
+attention_loss = AttentionLoss()
 
 device = torch.device("cuda")
+
+
 
 if cuda:
     #generator = set_gpu(generator)
@@ -81,6 +72,7 @@ if cuda:
     criterion_MSE = criterion_MSE.cuda()
     criterion_perceptual = perceptual_loss.cuda()
     criterion_gan = gan_loss.cuda()
+    criterion_attention = attention_loss.cuda()
 
 # Load pretrained models
 # generator.load_state_dict(torch.load("saved_models/generator_%d.pth"))
@@ -111,7 +103,16 @@ for epoch in range(opt.epoch, opt.n_epochs):
         imgs_lr = Variable(imgs["lr"].type(Tensor))
         imgs_hr = Variable(imgs["hr"].type(Tensor))
 
-        chunk_dim = 4
+        imgs_hr, imgs_lr, mask, aug = augments.apply_augment(
+                imgs_hr, imgs_lr,
+                opt.augs, opt.prob, opt.alpha,
+                opt.aux_alpha, opt.aux_alpha, opt.mix_p
+            )
+        
+        trans = transforms.Resize((512//4, 512//4), Image.BICUBIC)
+        imgs_lr = trans(imgs_lr)
+
+        chunk_dim = 2
         a_x_split = torch.chunk(imgs_lr, chunk_dim, dim=2)
 
         chunks_lr = []
@@ -136,33 +137,35 @@ for epoch in range(opt.epoch, opt.n_epochs):
         #  Train Generators
         # ------------------
 
-        optimizer_G.zero_grad()
+        
 
         # Generate a high resolution image from low resolution input
         total_loss_G = 0
         gen_hrs = []
         for j in range(len(chunks_lr)):
+            optimizer_G.zero_grad()
             gen_hrs.append(generator(chunks_lr[j]))
             fake_pred = discriminator(generator(chunks_lr[j]))
             loss_GAN = criterion_gan(fake_pred, True, is_disc=False)
             loss_content = criterion_perceptual(generator(chunks_lr[j]), chunks_hr[j])
             loss_pixel = criterion_MSE(generator(chunks_lr[j]), chunks_hr[j])
-            # Total loss
-            loss_G = loss_GAN + loss_pixel + loss_content
+            #loss_attention = criterion_attention(generator(chunks_lr[j]), chunks_hr[j])
+            # Total loss 
+            loss_G = loss_GAN + loss_pixel + loss_content #+ loss_attention
             total_loss_G += loss_G
             loss_G.backward()
             optimizer_G.step()
-        gen_hr = generator(imgs_lr)
 
         # ---------------------
         #  Train Discriminator
         # ---------------------
 
-        optimizer_D.zero_grad()
+        
 
         # Loss of real and fake images
         total_loss_D = 0
         for j in range(len(chunks_lr)):
+            optimizer_D.zero_grad()
             real_pred = discriminator(chunks_hr[j])
             fake_pred = discriminator(generator(chunks_lr[j]))
             loss_real = criterion_gan(real_pred, True, is_disc=True)
@@ -192,6 +195,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
         batches_done = epoch * len(dataloader) + i
         if batches_done % opt.sample_interval == 0:
             # Save image grid with upsampled inputs and SRGAN outputs
+            """
             h1 = torch.cat((gen_hrs[0],gen_hrs[1],gen_hrs[2],gen_hrs[3]),3)
             h2 = torch.cat((gen_hrs[4],gen_hrs[5],gen_hrs[6],gen_hrs[7]),3)
             h3 = torch.cat((gen_hrs[8],gen_hrs[9],gen_hrs[10],gen_hrs[11]),3)
@@ -199,6 +203,10 @@ for epoch in range(opt.epoch, opt.n_epochs):
             h12 = torch.cat((h1,h2),2)
             h34 = torch.cat((h3,h4),2)
             gen_hr = torch.cat((h12,h34),2)
+            """
+            up = torch.cat((gen_hrs[0],gen_hrs[1]),3)
+            down = torch.cat((gen_hrs[2],gen_hrs[3]),3)
+            gen_hr = torch.cat((up,down),2)
             PSNR = 10 * math.log(255*255/criterion_MSE(10*imgs_hr, 10*gen_hr),10)
             print("[PSNR %f]" % (PSNR))
             imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=4)

@@ -10,6 +10,13 @@ from torch.nn import functional as F
 from torch.nn import init as init
 from torch.nn.modules.batchnorm import _BatchNorm
 
+import numpy as np
+import os
+from collections import OrderedDict
+
+import time
+
+
 @torch.no_grad()
 def default_init_weights(module_list, scale=1, bias_fill=0, **kwargs):
     if not isinstance(module_list, list):
@@ -47,3 +54,30 @@ def pixel_unshuffle(x, scale):
     w = hw // scale
     x_view = x.view(b, c, h, scale, w, scale)
     return x_view.permute(0, 1, 3, 5, 2, 4).reshape(b, out_channel, h, w)
+
+def tensor2np(tensor, out_type=np.uint8):
+    num_max = torch.max(tensor).float().cpu().numpy()
+    num_min = torch.min(tensor).float().cpu().numpy()
+    img_np = tensor.float().cpu().detach()[0].numpy()
+    min_max = (num_min, num_max)
+    img_np = (img_np - min_max[0]) / (min_max[1] - min_max[0])  # to range [0, 1]
+    #img_np = np.transpose(img_np, (1, 2, 0))
+    if out_type == np.uint8:
+        img_np = (img_np * 255.0).round()
+
+    return img_np.astype(out_type)
+
+def load_state_dict(path):
+
+    state_dict = torch.load(path)
+    new_state_dcit = OrderedDict()
+    for k, v in state_dict.items():
+        if 'module' in k:
+            name = k[7:]
+        else:
+            name = k
+        new_state_dcit[name] = v
+    return new_state_dcit
+
+
+
