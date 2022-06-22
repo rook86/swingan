@@ -5,18 +5,17 @@ import math
 import itertools
 import sys
 
-import torchvision.transforms as transforms
 from torchvision.utils import save_image, make_grid
 
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
-import torch.utils.data.distributed
+#import torch.utils.data.distributed
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from torchsummary import summary
 
-from generator import *
+#from generator import *
 from discriminator import *
 from feature_extractor import *
 from losses import *
@@ -40,7 +39,7 @@ opt = get_option()
 
 hr_shape = (opt.hr_height, opt.hr_width)
 upscale = 4
-window_size = 8
+window_size = 4
 height = (256 // upscale // window_size + 1) * window_size
 width = (256 // upscale // window_size + 1) * window_size
 
@@ -55,7 +54,6 @@ discriminator = Discriminator(input_shape=(opt.channels, *hr_shape))
 perceptual_loss = PerceptualLoss()
 gan_loss = GANLoss()
 criterion_MSE = torch.nn.MSELoss()
-attention_loss = AttentionLoss()
 
 device = torch.device("cuda")
 
@@ -67,8 +65,8 @@ if cuda:
     criterion_MSE = criterion_MSE.cuda()
     criterion_perceptual = perceptual_loss.cuda()
     criterion_gan = gan_loss.cuda()
-    criterion_attention = attention_loss.cuda()
 
+summary(generator,(3,128,128))
 # Load pretrained models
 # generator.load_state_dict(torch.load("saved_models/generator_%d.pth"))
 # discriminator.load_state_dict(torch.load("saved_models/discriminator_%d.pth"))
@@ -144,7 +142,6 @@ for epoch in range(opt.epoch, opt.n_epochs):
             loss_GAN = criterion_gan(fake_pred, True, is_disc=False)
             loss_content = criterion_perceptual(generator(chunks_lr[j]), chunks_hr[j])
             loss_pixel = criterion_MSE(generator(chunks_lr[j]), chunks_hr[j])
-            #loss_attention = criterion_attention(generator(chunks_lr[j]), chunks_hr[j])
             # Total loss 
             loss_G = loss_GAN + loss_pixel + loss_content #+ loss_attention
             total_loss_G += loss_G
