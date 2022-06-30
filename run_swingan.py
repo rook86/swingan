@@ -39,9 +39,9 @@ opt = get_option()
 
 hr_shape = (opt.hr_height, opt.hr_width)
 upscale = 4
-window_size = 4
-height = (256 // upscale // window_size + 1) * window_size
-width = (256 // upscale // window_size + 1) * window_size
+window_size = 8
+height = (640 // upscale // window_size + 1) * window_size
+width = (640 // upscale // window_size + 1) * window_size
 
 # Initialize generator and discriminator
 #generator = Generator(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=1, num_grow_ch=32)
@@ -66,7 +66,6 @@ if cuda:
     criterion_perceptual = perceptual_loss.cuda()
     criterion_gan = gan_loss.cuda()
 
-summary(generator,(3,128,128))
 # Load pretrained models
 # generator.load_state_dict(torch.load("saved_models/generator_%d.pth"))
 # discriminator.load_state_dict(torch.load("saved_models/discriminator_%d.pth"))
@@ -102,7 +101,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
                 opt.aux_alpha, opt.aux_alpha, opt.mix_p
             )
         
-        trans = transforms.Resize((512//4, 512//4), Image.BICUBIC)
+        trans = transforms.Resize((640//4, 640//4), Image.BICUBIC)
         imgs_lr = trans(imgs_lr)
 
         chunk_dim = 2
@@ -143,7 +142,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
             loss_content = criterion_perceptual(generator(chunks_lr[j]), chunks_hr[j])
             loss_pixel = criterion_MSE(generator(chunks_lr[j]), chunks_hr[j])
             # Total loss 
-            loss_G = loss_GAN + loss_pixel + loss_content #+ loss_attention
+            loss_G = loss_GAN + loss_pixel * 10 + loss_content
             total_loss_G += loss_G
             loss_G.backward()
             optimizer_G.step()

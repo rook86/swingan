@@ -57,6 +57,19 @@ class PatchEmbed(nn.Module):
         # pdb.set_trace()
         x = self.proj(x).flatten(2).transpose(1, 2)#64*48*48->768*6*6->768*36->36*768
         return x
+
+class Pooling(nn.Module):
+    """
+    Implementation of pooling for PoolFormer
+    --pool_size: pooling size
+    """
+    def __init__(self, pool_size=3):
+        super().__init__()
+        self.pool = nn.AvgPool2d(
+            pool_size, stride=1, padding=pool_size//2, count_include_pad=False)
+
+    def forward(self, x):
+        return self.pool(x) - x
         
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.ReLU, drop=0.):
@@ -144,8 +157,10 @@ class MLABlock(nn.Module):
                             attn_drop=0., proj_drop=0.)
         self.norm1 = nn.LayerNorm(self.dim)
         # self.posi = PositionEmbeddingLearned(n_feat)
+        self.token_mixer = Pooling()
         self.mlp = Mlp(in_features=dim, hidden_features=dim//4, act_layer=act_layer, drop=drop)
         self.norm2 = nn.LayerNorm(self.dim)
+
     def forward(self, x):
         # pdb.set_trace()
         B = x.shape[0]
@@ -159,6 +174,8 @@ class MLABlock(nn.Module):
                                     padding='same')#   16*2304*576
         x = x.permute(0,2,1)
 
-        x = x + self.atten(self.norm1(x))
+        x = x + self.token_mixer(self.norm1(x))
         x = x + self.mlp(self.norm2(x))#self.drop_path(self.mlp(self.norm2(x)))
+        x = x + self.token_mixer(self.norm1(x))
+        x = x + self.mlp(self.norm2(x))
         return x

@@ -39,8 +39,8 @@ hr_shape = (opt.hr_height, opt.hr_width)
 
 upscale = 4
 window_size = 8
-height = (256 // upscale // window_size + 1) * window_size
-width = (256 // upscale // window_size + 1) * window_size
+height = (640 // upscale // window_size + 1) * window_size
+width = (640 // upscale // window_size + 1) * window_size
 
 # Initialize generator
 generator = SwinIR(upscale=4, img_size=(height, width),
@@ -52,7 +52,7 @@ device = torch.device("cuda")
 
 
 # Load pretrained models
-model_dict = "saved_models/generator_0.pth"
+model_dict = "saved_models/generator_35.pth"
 generator.load_state_dict(torch.load(model_dict))
 if cuda:
     generator = generator.cuda()
@@ -60,7 +60,7 @@ if cuda:
 Tensor = torch.cuda.FloatTensor if cuda else torch.Tensor
 
 dataloader = DataLoader(
-    ImageDataset("../sr_datasets/set5", hr_shape=hr_shape),
+    ImageDataset("../sr_datasets/BSD100", hr_shape=hr_shape),
     batch_size=opt.batch_size,
     shuffle=True,
     num_workers=opt.n_cpu,
@@ -78,7 +78,7 @@ for i, imgs in enumerate(dataloader):
     imgs_lr = Variable(imgs["lr"].type(Tensor))
     imgs_hr = Variable(imgs["hr"].type(Tensor))
 
-    trans = transforms.Resize((512//4, 512//4), Image.BICUBIC)
+    trans = transforms.Resize((640//4, 640//4), Image.BICUBIC)
     imgs_lr = trans(imgs_lr)
 
     chunk_dim = 2

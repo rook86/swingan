@@ -462,7 +462,8 @@ class Generator(nn.Module):
             *[AttentionResidualBlock(num_feat)
             for _ in range(n_res_layers)],
             nn.BatchNorm2d(num_feat),
-            nn.ReLU()
+            nn.ReLU(),
+            #make_layer(RRDB, num_block, num_feat=num_feat, num_grow_ch=num_grow_ch)
             )
         self.conv_body = nn.Conv2d(num_feat, num_feat, 3, 1, 1)
         # upsample

@@ -50,13 +50,13 @@ def parse_args():
     parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
     parser.add_argument("--n_epochs", type=int, default=100, help="number of epochs of training")
     parser.add_argument("--batch_size", type=int, default=1, help="size of the batches")
-    parser.add_argument("--lr", type=float, default=0.00002, help="adam: learning rate")
+    parser.add_argument("--lr", type=float, default=0.00005, help="adam: learning rate")
     parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
     parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
     parser.add_argument("--decay_epoch", type=int, default=100, help="epoch from which to start lr decay")
     parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
-    parser.add_argument("--hr_height", type=int, default=512, help="high res. image height")
-    parser.add_argument("--hr_width", type=int, default=512, help="high res. image width")
+    parser.add_argument("--hr_height", type=int, default=640, help="high res. image height")
+    parser.add_argument("--hr_width", type=int, default=640, help="high res. image width")
     parser.add_argument("--channels", type=int, default=3, help="number of image channels")
     parser.add_argument("--sample_interval", type=int, default=100, help="interval between saving image samples")
     parser.add_argument("--checkpoint_interval", type=int, default=-1, help="interval between model checkpoints")
@@ -108,14 +108,11 @@ def make_template(opt):
 
     # default augmentation policies
     if opt.use_moa:
-        opt.augs = ["blend", "rgb", "mixup", "cutout", "cutmix", "cutmixup", "cutblur"]
-        opt.prob = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-        opt.alpha = [0.6, 1.0, 1.2, 0.001, 0.7, 0.7, 0.7]
+        opt.augs = ["none","blend", "rgb", "mixup", "cutout", "cutmix", "cutmixup", "cutblur"]
+        opt.prob = [0,1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+        opt.alpha = [0,0.6, 1.0, 1.2, 0.001, 0.7, 0.7, 0.7]
         opt.aux_prob, opt.aux_alpha = 1.0, 1.2
-        opt.mix_p = None
-
-        if "RealSR" in opt.dataset:
-            opt.mix_p = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.4]
+        opt.mix_p = [0,0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.4]
 
         if "DN" in opt.dataset or "JPEG" in opt.dataset:
             opt.prob = [0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6]

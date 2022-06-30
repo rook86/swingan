@@ -4,6 +4,7 @@ from torch import autograd as autograd
 from torch import nn as nn
 from torch.nn import functional as F
 from feature_extractor import VGGFeatureExtractor
+import common
 
 class PerceptualLoss(nn.Module):
 
@@ -86,3 +87,52 @@ class GANLoss(nn.Module):
 
         # loss_weight is always 1.0 for discriminators
         return loss if is_disc else loss * self.loss_weight
+
+class Pooling(nn.Module):
+    """
+    Implementation of pooling for PoolFormer
+    --pool_size: pooling size
+    """
+    def __init__(self, pool_size=3):
+        super().__init__()
+        self.pool = nn.AvgPool2d(
+            pool_size, stride=1, padding=pool_size//2, count_include_pad=False)
+
+    def forward(self, x):
+        #return self.pool(x) - x
+        return F.avg_pool2d(x, kernel_size=2, stride=2, padding=0)
+
+
+class AttentionLoss(nn.Module):
+    def __init__(self, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
+        super().__init__()
+        dim = 288
+        self.num_heads = num_heads
+        head_dim = dim // num_heads
+        # NOTE scale factor was wrong in my original version, can set manually to be compat with prev weights
+        self.scale = qk_scale or head_dim ** -0.5
+
+        self.pool = Pooling()
+        #self.reduce = common.default_conv(3, 3, 5)
+        self.qkv = nn.Linear(dim//2, dim//2 * 3, bias=qkv_bias)
+
+        criterion_mse = torch.nn.MSELoss()
+    
+    def split(self, x):
+        #x = self.reduce(x)
+        x = torch.squeeze(x, 3)
+        x = self.pool(x)
+        x = self.pool(x)
+        print(x.shape)
+        D,B,N,C = x.shape
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]
+
+        return q, k, v
+
+    def forward(self, g, hr):
+        
+        q_g, k_g, v_g = self.split(g)
+        q_hr, k_hr, v_hr = self.split(hr)
+        loss =  criterion_MSE(q_g, q_hr) + criterion_MSE(k_g, k_hr) + criterion_MSE(k_g, k_hr)
+        return loss

@@ -32,8 +32,7 @@ def extract_image_patches(images, ksizes, strides, rates, padding='same'):
     Extract patches from images and put them in the C output dimension.
     :param padding:
     :param images: [batch, channels, in_rows, in_cols]. A 4-D Tensor with shape
-    :param ksizes: [ksize_rows, ksize_cols]. The size of the sliding window for
-     each dimension of images
+    :param ksizes: [ksize_rows, ksize_cols]. The size of the sliding window for each dimension of images
     :param strides: [stride_rows, stride_cols]
     :param rates: [dilation_rows, dilation_cols]
     :return: A Tensor
@@ -51,18 +50,18 @@ def extract_image_patches(images, ksizes, strides, rates, padding='same'):
                 Only "same" or "valid" are supported.'.format(padding))
 
     unfold = torch.nn.Unfold(kernel_size=ksizes,
-                             dilation=rates,
-                             padding=0,
-                             stride=strides)
+                            dilation=rates,
+                            padding=0,
+                            stride=strides)
     patches = unfold(images)
     return patches  # [N, C*k*k, L], L is the total number of such blocks
+
 def reverse_patches(images, out_size, ksizes, strides, padding):
     """
     Extract patches from images and put them in the C output dimension.
     :param padding:
     :param images: [batch, channels, in_rows, in_cols]. A 4-D Tensor with shape
-    :param ksizes: [ksize_rows, ksize_cols]. The size of the sliding window for
-     each dimension of images
+    :param ksizes: [ksize_rows, ksize_cols]. The size of the sliding window for each dimension of images
     :param strides: [stride_rows, stride_cols]
     :param rates: [dilation_rows, dilation_cols]
     :return: A Tensor
@@ -74,6 +73,7 @@ def reverse_patches(images, out_size, ksizes, strides, padding):
                             stride=strides)
     patches = unfold(images)
     return patches  # [N, C*k*k, L], L is the total number of such blocks
+
 def reduce_mean(x, axis=None, keepdim=False):
     if not axis:
         axis = range(len(x.shape))
